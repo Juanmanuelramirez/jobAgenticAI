@@ -1,0 +1,78 @@
+/* ========================================
+ARCHIVO CSS
+========================================
+*/
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Estilos para el scrollbar del chat (Modo Claro) */
+#chat-window::-webkit-scrollbar { 
+    width: 8px; 
+}
+#chat-window::-webkit-scrollbar-track { 
+    background: #f1f5f9; /* bg-slate-100 */
+}
+#chat-window::-webkit-scrollbar-thumb { 
+    background: #cbd5e1; /* bg-slate-300 */
+    border-radius: 4px; 
+}
+#chat-window::-webkit-scrollbar-thumb:hover { 
+    background: #94a3b8; /* bg-slate-400 */
+}
+
+/* Animación del loader */
+.loader {
+    border-top-color: #4f46e5; /* indigo-600 */
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Estilos para botones de idioma */
+.lang-btn {
+    background-color: #e5e7eb; /* bg-gray-200 */
+    color: #4b5563; /* text-gray-600 */
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.375rem; /* rounded-md */
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 600; /* font-semibold */
+    transition: all 0.2s;
+}
+.lang-btn.active {
+    background-color: #4f46e5; /* bg-indigo-600 */
+    color: #ffffff; /* text-white */
+}
+.lang-btn:not(.active):hover {
+    background-color: #d1d5db; /* bg-gray-300 */
+}
+
+/* Estilos para Burbujas de Chat */
+.user-bubble {
+    background-color: #4f46e5; /* bg-indigo-600 */
+    color: white;
+}
+.agent-bubble {
+    background-color: #f3f4f6; /* bg-gray-100 */
+    color: #111827; /* text-gray-900 */
+    border: 1px solid #e5e7eb; /* border-gray-200 */
+}
+
+/* Estilos para el contenido Markdown del agente */
+.agent-bubble p { margin-bottom: 0.5rem; }
+.agent-bubble p:last-child { margin-bottom: 0; }
+.agent-bubble ul {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding-left: 0.5rem;
+}
+.agent-bubble li { margin-bottom: 0.25rem; }
+.agent-bubble strong { 
+    font-weight: 600; 
+    color: #312e81; /* text-indigo-900 */
+}
+.user-bubble p { margin: 0; }
