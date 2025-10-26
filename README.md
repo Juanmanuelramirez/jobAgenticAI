@@ -8,44 +8,35 @@ Este es un agente de IA para la búsqueda de empleos que actúa como un "headhun
 * **Análisis de Brechas (Gap Analysis):** Compara tu CV con las descripciones de trabajo e identifica las habilidades clave que te faltan.  
 * **Asesor de CV:** Un modo "Criticar mi CV" que te da feedback accionable para mejorar tu perfil.  
 * **Bucle de Iteración:** Puedes editar tu CV en tiempo real y "Re-Analizar" para obtener un nuevo conjunto de empleos y consejos.  
-* **Multilingüe:** Soporta Español e Inglés.
+* **Multilingüe:** Soporta Español e Inglés.  
+* **Arquitectura Segura:** Listo para despliegue en producción (Vercel/Netlify) con un proxy de API para proteger tu clave secreta.
 
-## **🚀 Configuración y Ejecución Local**
+## **🚀 Configuración y Ejecución**
 
-Para ejecutar este proyecto localmente, necesitas un servidor web simple (debido a la carga de módulos de JS) y, lo más importante, una clave de API de Google Gemini.
+Este proyecto tiene dos modos de ejecución: Local (para desarrollo) y Producción (para despliegue).
 
-### **1\. Requisito Previo: Clave de API de Gemini**
+### **1\. Desarrollo Local**
 
-1. Ve a [Google AI Studio](https://aistudio.google.com/).  
-2. Inicia sesión y haz clic en "**Get API key**" (Obtener clave de API).  
-3. Crea una nueva clave de API. Cópiala y guárdala de forma segura.
+Para ejecutar este proyecto localmente, necesitas un servidor web simple y tu clave de API de Google Gemini.
 
-### **2\. Configuración del Proyecto**
-
-1. **Clona el Repositorio:**
-
-```
-
-git clone [https://github.com/TU_USUARIO/TU_REPOSITORIO.git](https://github.com/TU_USUARIO/TU_REPOSITORIO.git)
-cd TU_REPOSITORIO
+1. **Obtén tu Clave de API:**  
+   * Ve a [Google AI Studio](https://aistudio.google.com/).  
+   * Crea una nueva clave de API y cópiala.  
+2. **Crea el Archivo de Configuración (¡CRÍTICO\!)**  
+   * Crea un archivo llamado config.js en la raíz del proyecto (junto a index.html).  
+   * Este archivo **es ignorado por Git** (gracias a .gitignore) para que nunca expongas tu clave.  
+   * Añade el siguiente contenido, reemplazando "TU\_API\_KEY\_AQUI":
 
 ```
 
-4.   
-   Crea el Archivo de Configuración (¡CRÍTICO\!)  
-   Este proyecto utiliza un archivo config.js para almacenar tu clave de API de forma segura. Este archivo es ignorado por Git (gracias a .gitignore) para que nunca expongas tu clave.  
-   Crea un archivo llamado config.js en la raíz del proyecto y añade el siguiente contenido, reemplazando "TU\_API\_KEY\_AQUI" con tu clave real:
-
-```
-
-// config.js
+// config.js (SÓLO PARA DESARROLLO LOCAL)
 const API_KEY = "TU_API_KEY_AQUI";
 
 ```
 
-7.   
-   Ejecuta un Servidor Local  
-   Debido a que usamos import de JavaScript (Módulos ES), no puedes simplemente abrir index.html en tu navegador. Necesitas un servidor local. La forma más fácil es usando http-server:
+5.   
+   **Ejecuta un Servidor Local**  
+   * No puedes simplemente abrir index.html en tu navegador (debido a los módulos de JS). Necesitas un servidor. La forma más fácil es usando http-server:
 
 ```
 
@@ -57,26 +48,28 @@ http-server -c-1
 
 ```
 
-10.   
-    Abre tu navegador y ve a http://localhost:8080. ¡La aplicación debería funcionar\!
+8.   
+   Abre tu navegador y ve a http://localhost:8080. La aplicación detectará que estás en localhost y usará la clave de tu config.js.
 
-## **🔒 Despliegue en Producción (¡IMPORTANTE\!)**
+### **2\. Despliegue en Producción (¡SEGURO\!)**
 
-**NUNCA DESPLIEGUES ESTE PROYECTO ESTÁTICAMENTE (COMO EN GITHUB PAGES) CON config.js**
+**NUNCA** subas tu archivo config.js ni tu clave de API a GitHub. Usaremos la arquitectura de "proxy" (serverless function) en Vercel o Netlify.
 
-Si lo haces, tu clave de API será visible para todo el mundo. La única manera segura de desplegar una aplicación como esta es usando un **backend proxy** (también conocido como *serverless function*).
+1. **Sube tu Proyecto a GitHub:**  
+   * Asegúrate de que tu .gitignore esté impidiendo que config.js se suba.  
+   * Incluye los archivos: index.html, style.css, script.js, api/chat.js, README.md, y .gitignore.  
+2. **Crea una Cuenta en Vercel:**  
+   * Regístrate en [Vercel](https://vercel.com/) y conecta tu cuenta de GitHub.  
+   * Importa tu repositorio de GitHub como un nuevo proyecto en Vercel.  
+3. **Configura las Variables de Entorno (El Secreto):**  
+   * En el panel de tu proyecto en Vercel, ve a "Settings" \-\> "Environment Variables".  
+   * Crea una nueva variable llamada:  
+     * **Nombre:** GEMINI\_API\_KEY  
+     * **Valor:** Pega tu clave de API secreta de Gemini aquí.  
+   * Guarda los cambios.  
+4. **Despliega:**  
+   * Vercel detectará la carpeta /api y automáticamente desplegará tu archivo chat.js como una "Serverless Function" (un backend).  
+   * El script.js detectará que *no* está en localhost y automáticamente llamará a /api/chat.  
+   * El servidor /api/chat leerá la variable de entorno GEMINI\_API\_KEY de forma segura y llamará a Google.
 
-### **Arquitectura Recomendada: Vercel o Netlify**
-
-La idea es que tu frontend (el index.html) no llame a la API de Gemini directamente. En su lugar, llama a una función en tu propio servidor (un "proxy"), y es *ese servidor* el que añade la clave de API (que está guardada de forma segura como una variable de entorno) y luego llama a Gemini.
-
-1. **Frontend (GitHub):** Tu index.html, style.css, script.js.  
-2. **Llamada de JS:** El script.js se modifica para que no llame a https://generativelanguage.googleapis.com/..., sino a /api/chat.  
-3. **Backend (Función Serverless de Vercel/Netlify):**  
-   * Creas una función en api/chat.js.  
-   * Esta función recibe la petición del frontend.  
-   * Lee la clave de API de las **Variables de Entorno** (ej. process.env.GEMINI\_API\_KEY).  
-   * Llama a la API de Gemini *desde el servidor*, añadiendo la clave secreta.  
-   * Devuelve la respuesta de Gemini al frontend.
-
-Esta arquitectura asegura que tu clave de API **nunca** se exponga al navegador del usuario.
+¡Tu proyecto estará desplegado de forma segura y profesional\!

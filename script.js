@@ -32,22 +32,43 @@ try {
     if (typeof API_KEY !== 'undefined') {
         apiKey = API_KEY;
     } else {
-        throw new Error("API_KEY not found. Please create config.js");
+        // Esto es esperado en producción, no es un error.
+        console.info("config.js o API_KEY no encontrada. Asumiendo entorno de producción (proxy).");
     }
 } catch (e) {
-    console.error(e.message);
-    // Mostrar un error al usuario en el chat, ya que la app no puede funcionar.
-    addMessage('agent', 'Error de Configuración: No se encontró el archivo `config.js` con una `API_KEY`. Por favor, sigue las instrucciones del `README.md`.');
+    // Esto es esperado en producción.
+    console.info("Asumiendo entorno de producción (proxy).");
 }
 
-const apiUrl = '/api/chat'; // ¡Llamamos a nuestra propia API segura!
+/**
+ * ARQUITECTURA: Determina la URL de la API a usar.
+ * - En local (localhost), usa la clave de config.js.
+ * - En producción, usa el proxy /api/chat.
+ * @returns {string|null} La URL de la API o null si falla la configuración local.
+ */
+function getApiUrl() {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isLocal) {
+        // --- Modo de Desarrollo Local ---
+        if (!apiKey) {
+            console.error("Error de Configuración Local: No se encontró API_KEY en config.js.");
+            addMessage('agent', 'Error de Configuración: No se encontró el archivo `config.js` con una `API_KEY`. Por favor, sigue las instrucciones del `README.md` para el desarrollo local.');
+            return null;
+        }
+        return `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    } else {
+        // --- Modo de Producción (Vercel/Netlify) ---
+        return '/api/chat';
+    }
+}
 
 
 // --- Diccionario de Textos (i18n) ---
 const uiStrings = {
     es: {
         title: "Asesor de Empleo con IA",
-        cvTitle: "Tu Curriculum Vitae (CV) - Editable",
+        cvTitle: "Tu Curriculum VitaE (CV) - Editable",
         cvSubtitle: "Pega tu CV aquí. Puedes editarlo en cualquier momento y re-analizar.",
         cvPlaceholder: "Pega tu CV completo aquí... (Ej: Juan Pérez, Desarrollador Web, Experiencia en JavaScript, Educación...)",
         analyzeBtn: "Analizar CV y Buscar Empleos",
@@ -88,7 +109,7 @@ Tu tarea es ayudar al usuario a encontrar las mejores ofertas de trabajo basadas
     
 **Mandatorio:** DEBES basar tu resumen de empleos y tu análisis de brechas (Gap Analysis) *directamente* en los resultados de la Búsqueda de Google.
 
-**Regla Crítica para Enlaces:** Tu respuesta DEBE estar *directamente* basada en la información de los resultados de la búsqueda. Si no basas tu respuesta en los resultados de búsqueda, los enlaces de "Empleos Encontrados" (las URLs de las vacantes) NO aparecerán, y fallarás en tu tarea principal. El usuario NECESITA esos enlaces para poder aplicar.
+**Regla Crítica para Enlaces:** Tu respuesta DEBE estar *directamente* basada en la información de los resultados de la búsqueda. Si no basas tu respuesta en los resultados de búsqueda, los enlaces de "EmpleOS Encontrados" (las URLs de las vacantes) NO aparecerán, y fallarás en tu tarea principal. El usuario NECESITA esos enlaces para poder aplicar.
 
 **Regla de Formato de Enlaces (NUEVO):** Al final de tu resumen de empleos, DEBES incluir una lista de los 3-5 enlaces de vacantes más relevantes en formato Markdown, de esta forma:
 * [Título del Empleo 1](httpsURL-real-de-la-vacante.com)
@@ -152,13 +173,12 @@ Your task is to help the user find the best job offers based on their CV and con
 };
 
 // --- Event Listeners ---
-if (apiKey) { // Solo adjuntar listeners si la clave de API está presente
-    langBtnEs.addEventListener('click', () => setLanguage('es'));
-    langBtnEn.addEventListener('click', () => setLanguage('en'));
-    loadCvBtn.addEventListener('click', handleCvLoad);
-    critiqueCvBtn.addEventListener('click', handleCvCritique);
-    userInputForm.addEventListener('submit', handleUserMessage);
-}
+langBtnEs.addEventListener('click', () => setLanguage('es'));
+langBtnEn.addEventListener('click', () => setLanguage('en'));
+loadCvBtn.addEventListener('click', handleCvLoad);
+critiqueCvBtn.addEventListener('click', handleCvCritique);
+userInputForm.addEventListener('submit', handleUserMessage);
+
 
 // --- Handlers de Eventos ---
 
@@ -226,6 +246,13 @@ async function runAgent(userMessage, runSearch = true) {
     jobListingsContainer.classList.add('hidden');
     jobListings.innerHTML = '';
 
+    // Obtener la URL correcta (local con clave o proxy de prod)
+    const apiUrl = getApiUrl();
+    if (!apiUrl) {
+        setLoadingState(false);
+        return; // Error de configuración local, mensaje ya mostrado.
+    }
+
     const contents = [
         ...chatHistory,
         { role: "user", parts: [{ text: userMessage }] }
@@ -292,6 +319,9 @@ async function runAgent(userMessage, runSearch = true) {
                 displayJobs(combinedSources);
             }
 
+        } else if (result.error) {
+             console.error("Error de API (del proxy):", result.error);
+             addMessage('agent', `${uiStrings[currentLang].apiError} (Detalle: ${result.error})`);
         } else {
             console.error("Respuesta inesperada de la API:", result);
             addMessage('agent', uiStrings[currentLang].apiError);
@@ -502,6 +532,5 @@ async function fetchWithBackoff(url, options, maxRetries = 3) {
 }
 
 // --- Inicialización ---
-if (apiKey) {
-    setLanguage(currentLang); // Establecer el idioma inicial
-}
+setLanguage(currentLang); // Establecer el idioma inicial
+
