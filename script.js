@@ -40,7 +40,8 @@ try {
     addMessage('agent', 'Error de Configuración: No se encontró el archivo `config.js` con una `API_KEY`. Por favor, sigue las instrucciones del `README.md`.');
 }
 
-const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+const apiUrl = '/api/chat'; // ¡Llamamos a nuestra propia API segura!
+
 
 // --- Diccionario de Textos (i18n) ---
 const uiStrings = {

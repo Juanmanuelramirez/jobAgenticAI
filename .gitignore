@@ -1,0 +1,23 @@
+#Este archivo es VITAL para la seguridad de tu clave de API.
+
+#Le dice a Git que ignore los archivos y carpetas listados.
+
+#Ignorar el archivo de configuración que contiene la clave de API
+
+config.js
+
+#Ignorar dependencias de Node (si se añaden en el futuro)
+
+node_modules/
+
+#Ignorar archivos de variables de entorno locales
+
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+#Ignorar archivos del sistema operativo
+
+.DS_Store Thumbs.dbr
