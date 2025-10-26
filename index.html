@@ -3,27 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- El título se establecerá con JavaScript -->
     <title>Asesor de Empleo con IA</title>
-    
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <!-- Carga de la fuente Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Carga de Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Carga de Marked.js (para Markdown) -->
+    <!-- Carga de Marked.js para renderizar Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
-    <!-- Carga de nuestros estilos personalizados -->
-    <link rel="stylesheet" href="style.css">
+    <!-- 
+    ========================================
+    INICIO: ARCHIVO CSS (LÓGICO)
+    ========================================
+    -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Estilos para el scrollbar del chat (Modo Claro) */
+        #chat-window::-webkit-scrollbar { 
+            width: 8px; 
+        }
+        #chat-window::-webkit-scrollbar-track { 
+            background: #f1f5f9; /* bg-slate-100 */
+        }
+        #chat-window::-webkit-scrollbar-thumb { 
+            background: #cbd5e1; /* bg-slate-300 */
+            border-radius: 4px; 
+        }
+        #chat-window::-webkit-scrollbar-thumb:hover { 
+            background: #94a3b8; /* bg-slate-400 */
+        }
+        
+        /* Animación del loader */
+        .loader {
+            border-top-color: #4f46e5; /* indigo-600 */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Estilos para botones de idioma */
+        .lang-btn {
+            background-color: #e5e7eb; /* bg-gray-200 */
+            color: #4b5563; /* text-gray-600 */
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem; /* rounded-md */
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 600; /* font-semibold */
+            transition: all 0.2s;
+        }
+        .lang-btn.active {
+            background-color: #4f46e5; /* bg-indigo-600 */
+            color: #ffffff; /* text-white */
+        }
+        .lang-btn:not(.active):hover {
+            background-color: #d1d5db; /* bg-gray-300 */
+        }
+
+        /* Estilos para Burbujas de Chat */
+        .user-bubble {
+            background-color: #4f46e5; /* bg-indigo-600 */
+            color: white;
+        }
+        .agent-bubble {
+            background-color: #f3f4f6; /* bg-gray-100 */
+            color: #111827; /* text-gray-900 */
+            border: 1px solid #e5e7eb; /* border-gray-200 */
+        }
+
+        /* Estilos para el contenido Markdown del agente */
+        .agent-bubble p { margin-bottom: 0.5rem; }
+        .agent-bubble p:last-child { margin-bottom: 0; }
+        .agent-bubble ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+            margin-top: 0.75rem;
+            margin-bottom: 0.75rem;
+            padding-left: 0.5rem;
+        }
+        .agent-bubble li { margin-bottom: 0.25rem; }
+        .agent-bubble strong { 
+            font-weight: 600; 
+            color: #312e81; /* text-indigo-900 */
+        }
+        .user-bubble p { margin: 0; }
+    </style>
+    <!-- 
+    ========================================
+    FIN: ARCHIVO CSS (LÓGICO)
+    ========================================
+    -->
 </head>
 <body class="bg-gray-100 text-gray-900 min-h-screen flex items-center justify-center p-4">
 
     <!-- 
     ========================================
-    INICIO: ESTRUCTURA HTML
+    INICIO: ARCHIVO HTML (LÓGICO)
     ========================================
     -->
     <div class="container relative mx-auto max-w-7xl h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-gray-200">
@@ -36,24 +118,27 @@
 
         <!-- Columna Izquierda: CV -->
         <div class="md:w-1/3 h-full flex flex-col p-6 border-r border-gray-200">
-            <h2 id="cv-title" class="text-2xl font-bold mb-4 text-center" data-i18n-key="cvTitle">Tu Curriculum Vitae (CV) - Editable</h2>
-            <p id="cv-subtitle" class_="text-sm text-gray-500 mb-3" data-i18n-key="cvSubtitle">Pega tu CV aquí. Puedes editarlo en cualquier momento y re-analizar.</p>
+            <h2 class="text-2xl font-bold mb-4 text-center" data-i18n-key="cvTitle">Tu Curriculum Vitae (CV)</h2>
+            <p class="text-sm text-gray-500 mb-3" data-i18n-key="cvSubtitle">Pega tu CV aquí. El agente lo usará para encontrar las mejores ofertas.</p>
             <textarea id="cv-textarea" class="w-full h-full p-3 bg-gray-50 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" data-i18n-key="cvPlaceholder" data-i18n-type="placeholder" placeholder="Pega tu CV completo aquí..."></textarea>
             
-            <!-- Contenedor de botones de acción -->
+            <!-- NUEVO: Contenedor de botones de acción -->
             <div class="flex space-x-3 mt-4">
                 <button id="load-cv-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg">
+                    <!-- Icono de Analizar (Lupa) -->
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                       <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
                     </svg>
                     <span data-i18n-key="analyzeBtn">Analizar CV y Buscar Empleos</span>
                 </button>
                 
+                <!-- NUEVO: Botón de Crítica de CV -->
                 <button id="critique-cv-btn" class="bg-white hover:bg-gray-100 text-gray-700 font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg border border-gray-300 disabled:opacity-50" disabled>
+                    <!-- Icono de Crítica (Documento con check) -->
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span data-i18n-key="critiqueBtn">Criticar mi CV</span>
+                    <span data-i18n-key="critiqueBtn">Criticar CV</span>
                 </button>
             </div>
         </div>
@@ -61,15 +146,18 @@
         <!-- Columna Derecha: Chat y Resultados -->
         <div class="md:w-2/3 h-full flex flex-col bg-white">
             
+            <!-- Ventana de Chat -->
             <div id="chat-window" class="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50">
                 <!-- El mensaje de bienvenida se añade con JS -->
             </div>
 
+            <!-- Loader -->
             <div id="loader" class="hidden flex items-center justify-center p-3 bg-white border-t border-gray-200">
                 <div class="loader w-5 h-5 border-4 border-gray-200 rounded-full"></div>
                 <span class="ml-3 text-sm text-gray-500" data-i18n-key="loaderMsg">El agente está pensando...</span>
             </div>
             
+            <!-- Contenedor de Empleos Encontrados -->
             <div id="job-listings-container" class="hidden p-4 border-t border-gray-200 bg-slate-100">
                 <h3 class="text-lg font-semibold mb-3 text-gray-800" data-i18n-key="jobsFoundTitle">Empleos Encontrados</h3>
                 <div id="job-listings" class="max-h-36 overflow-y-auto space-y-2 pr-2">
@@ -77,10 +165,12 @@
                 </div>
             </div>
 
+            <!-- Input del Usuario -->
             <form id="user-input-form" class="p-4 border-t border-gray-200 bg-white">
                 <div class="flex space-x-3">
                     <input type="text" id="user-input" class="flex-1 p-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" data-i18n-key="chatPlaceholder" data-i18n-type="placeholder" placeholder="Responde al agente aquí..." disabled>
                     <button type="submit" id="send-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-3 rounded-lg transition duration-300 disabled:opacity-50 flex items-center justify-center shadow-md hover:shadow-lg" disabled>
+                        <!-- Icono de Enviar (Avión de Papel) -->
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009.175 16V4.825a1 1 0 00-1.169-1.409l-5 1.429zM10 4.825V16.17a1 1 0 001.169 1.409l5-1.429a1 1 0 00.72-1.928l-7-14z" />
                         </svg>
@@ -92,26 +182,546 @@
     </div>
     <!-- 
     ========================================
-    FIN: ESTRUCTURA HTML
+    FIN: ARCHIVO HTML (LÓGICO)
     ========================================
     -->
 
+
     <!-- 
     ========================================
-    INICIO: CARGA DE JAVASCRIPT
+    INICIO: ARCHIVO JAVASCRIPT (LÓGICO)
     ========================================
     -->
-    <!-- 
-      ARQUITECTURA: 
-      1. Primero cargamos 'config.js' (que crearás localmente)
-      2. Luego cargamos 'script.js' (que usará la clave de config.js)
-    -->
-    <script src="config.js"></script>
-    <script src="script.js" type="module"></script>
+    <script type="module">
+        // --- Referencias del DOM ---
+        const cvTextarea = document.getElementById('cv-textarea');
+        const loadCvBtn = document.getElementById('load-cv-btn');
+        const critiqueCvBtn = document.getElementById('critique-cv-btn'); // NUEVO
+        const chatWindow = document.getElementById('chat-window');
+        const userInputForm = document.getElementById('user-input-form');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const loader = document.getElementById('loader');
+        const jobListingsContainer = document.getElementById('job-listings-container');
+        const jobListings = document.getElementById('job-listings');
+        const langBtnEs = document.getElementById('lang-btn-es');
+        const langBtnEn = document.getElementById('lang-btn-en');
+
+        // --- Estado de la Aplicación ---
+        let chatHistory = [];
+        let cvText = "";
+        let isAgentReady = false;
+        let currentLang = 'es'; // Idioma por defecto
+
+        // --- Configuración de la API de Gemini ---
+        const apiKey = ""; // Deja esto como está, Canvas lo gestionará
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+        // --- Diccionario de Textos (i18n) ---
+        const uiStrings = {
+            es: {
+                title: "Asesor de Empleo con IA",
+                cvTitle: "Tu Curriculum Vitae (CV) - Editable",
+                cvSubtitle: "Pega tu CV aquí. Puedes editarlo en cualquier momento y re-analizar.",
+                cvPlaceholder: "Pega tu CV completo aquí... (Ej: Juan Pérez, Desarrollador Web, Experiencia en JavaScript, Educación...)",
+                analyzeBtn: "Analizar CV y Buscar Empleos",
+                reAnalyzeBtn: "Re-Analizar y Buscar", // NUEVO
+                critiqueBtn: "Criticar mi CV", // NUEVO
+                welcomeMsg: "¡Hola! Soy tu asesor de IA para búsqueda de empleo. Pega tu CV a la izquierda y presiona 'Analizar' para comenzar.",
+                loaderMsg: "El agente está pensando...",
+                jobsFoundTitle: "Empleos Encontrados",
+                noJobsFound: "No se encontraron empleos esta vez.",
+                untitledLink: "Enlace sin título",
+                chatPlaceholder: "Responde al agente aquí...",
+                sendBtn: "Enviar",
+                cvTooShort: "Por favor, pega un CV más completo (mínimo 50 caracteres) para que pueda analizarlo correctamente.",
+                cvReceived: "¡CV recibido! Analizándolo y buscando empleos relevantes en internet. Esto puede tardar un momento...",
+                firstMessageCV: "Este es mi CV:\n\n---\n{cv}\n---\n\nPor favor, analiza mi CV, busca empleos relevantes y dime qué encuentras y qué habilidades clave podrían faltarme según las ofertas.",
+                critiqueMessage: "Este es mi CV actual:\n\n---\n{cv}\n---\n\nPor favor, actúa *únicamente* como un reclutador experto y asesor de carrera. NO busques empleos. Dame una crítica constructiva y accionable de mi CV. ¿Qué puedo mejorar? ¿Qué frases son débiles? ¿Cómo puedo reformular mi experiencia para tener más impacto?", // NUEVO
+                apiError: "Lo siento, he encontrado un error al procesar tu solicitud. Inténtalo de nuevo.",
+                connectionError: "He tenido un problema de conexión. Por favor, espera un momento y vuelve a intentarlo.",
+                systemPrompt: `
+Eres un "Asesor de IA" experto en reclutamiento y análisis de perfiles, como un headhunter de alto nivel. Tu tono es profesional, proactivo, servicial y estratégico.
+Tu tarea es ayudar al usuario a encontrar las mejores ofertas de trabajo basadas en su CV y en la conversación, Y ayudarle a mejorar su CV.
+
+**Tu Proceso Obligatorio (Debes seguirlo en cada respuesta, a menos que se te pida una crítica de CV):**
+
+1.  **Analizar Contexto:** Revisa el CV del usuario (proporcionado en el mensaje) y TODO el historial de chat para entender sus habilidades, experiencia y las habilidades nuevas que ha confirmado.
+2.  **Buscar Empleos:** Utiliza SIEMPRE tu herramienta de Google Search para encontrar ofertas de trabajo relevantes en tiempo real basadas en el análisis del contexto.
+3.  **Análisis de Brechas (Gap Analysis):**
+    * Compara las 3-5 ofertas de trabajo más relevantes que encontraste con las habilidades del CV del usuario Y las habilidades confirmadas en el chat.
+    * **NUEVO (Asesoría de Headhunter):** No solo identifiques habilidades faltantes, sino también **sugiere cómo reformular la experiencia existente** en el CV para que coincida mejor con las descripciones de trabajo. (Ej: "Veo que pones 'Manejo de proyectos'. Para la vacante de 'Scrum Master', reformúlalo a 'Liderazgo de ceremonias Scrum y gestión de backlogs'").
+4.  **Preguntar (Clave):** Si identificas habilidades CLAVE en las descripciones de los trabajos que NO están ni en el CV ni han sido confirmadas en el chat, DEBES preguntarle al usuario sobre ellas. Sé específico.
+    * *Ejemplo Bueno:* "He notado que varias ofertas para 'Desarrollador Senior' piden experiencia con 'Kubernetes' y 'CI/CD'. ¿Tienes experiencia en estas áreas?"
+5.  **Confirmar y Sugerir Actualización:** Si el usuario confirma una nueva habilidad (ej. "Sí, usé Kubernetes por 2 años"), primero confirma que la has "anotado" para futuras búsquedas. Segundo, DEBES sugerirle que **actualice su CV en el editor de texto de la izquierda** y presione "Re-Analizar".
+    * *Ejemplo:* "¡Excelente! He tomado nota de tu experiencia con 'Kubernetes'. Te recomiendo **añadirlo ahora mismo a tu CV en el editor de la izquierda** y presionar 'Re-Analizar' para que busquemos empleos con tu perfil actualizado."
+6.  **Responder:** Formula una respuesta conversacional que incluya:
+    a) Un resumen de los empleos encontrados.
+    b) Tus preguntas sobre las habilidades faltantes (el "Gap Analysis").
+    c) Respuestas a cualquier pregunta directa que el usuario haya hecho.
+    
+**Mandatorio:** DEBES basar tu resumen de empleos y tu análisis de brechas (Gap Analysis) *directamente* en los resultados de la Búsqueda de Google.
+
+**Regla Crítica para Enlaces:** Tu respuesta DEBE estar *directamente* basada en la información de los resultados de la búsqueda. Si no basas tu respuesta en los resultados de búsqueda, los enlaces de "Empleos Encontrados" (las URLs de las vacantes) NO aparecerán, y fallarás en tu tarea principal. El usuario NECESITA esos enlaces para poder aplicar.
+
+**Regla de Formato de Enlaces (NUEVO):** Al final de tu resumen de empleos, DEBES incluir una lista de los 3-5 enlaces de vacantes más relevantes en formato Markdown, de esta forma:
+* [Título del Empleo 1](httpsURL-real-de-la-vacante.com)
+* [Título del Empleo 2](httpsURL-real-de-la-vacante.net)
+
+**Formato de Respuesta:** Utiliza Markdown para formatear tu respuesta. Usa listas con viñetas (\`*\`) para preguntas o puntos clave, y \`**negrita**\` para resaltar habilidades o títulos de trabajo. Esto es crucial para la legibilidad.
+`
+            },
+            en: {
+                title: "AI Job Advisor",
+                cvTitle: "Your Curriculum Vitae (CV) - Editable",
+                cvSubtitle: "Paste your CV here. You can edit it anytime and re-analyze.",
+                cvPlaceholder: "Paste your full CV here... (e.g., John Doe, Web Developer, JavaScript Experience, Education...)",
+                analyzeBtn: "Analyze CV and Search Jobs",
+                reAnalyzeBtn: "Re-Analyze and Search", // NEW
+                critiqueBtn: "Critique my CV", // NEW
+                welcomeMsg: "Hi! I'm your AI job advisor. Paste your CV on the left and press 'Analyze' to start.",
+                loaderMsg: "The agent is thinking...",
+                jobsFoundTitle: "Jobs Found",
+                noJobsFound: "No jobs were found this time.",
+                untitledLink: "Untitled Link",
+                chatPlaceholder: "Reply to the agent here...",
+                sendBtn: "Send",
+                cvTooShort: "Please paste a more complete CV (minimum 50 characters) so I can analyze it correctly.",
+                cvReceived: "CV received! Analyzing it and searching for relevant jobs online. This may take a moment...",
+                firstMessageCV: "This is my CV:\n\n---\n{cv}\n---\n\nPlease analyze my CV, search for relevant jobs, and tell me what you find and what key skills I might be missing based on the listings.",
+                critiqueMessage: "This is my current CV:\n\n---\n{cv}\n---\n\nPlease act *only* as an expert recruiter and career coach. DO NOT search for jobs. Give me constructive, actionable feedback on my CV. What can I improve? What phrases are weak? How can I rephrase my experience for more impact?", // NEW
+                apiError: "Sorry, I've encountered an error while processing your request. Please try again.",
+                connectionError: "I've had a connection issue. Please wait a moment and try again.",
+                systemPrompt: `
+You are an "AI Advisor" and expert headhunter. Your tone is professional, proactive, helpful, and strategic.
+Your task is to help the user find the best job offers based on their CV and conversation, AND help them improve their CV.
+
+**Your Mandatory Process (Follow on every reply, unless asked for a CV critique):**
+
+1.  **Analyze Context:** Review the user's CV (provided in the message) and ALL chat history to understand their skills, experience, and new confirmed skills.
+2.  **Search Jobs:** ALWAYS use your Google Search tool to find relevant job openings in real-time.
+3.  **Gap Analysis:**
+    * Compare the 3-5 most relevant job openings with the user's CV skills AND confirmed chat skills.
+    * **NEW (Headhunter Advice):** Don't just identify missing skills, but also **suggest how to rephrase existing experience** on the CV to better match job descriptions. (e.g., "I see you listed 'Project Management'. For this 'Scrum Master' role, rephrase that to 'Led Scrum ceremonies and managed product backlogs'").
+4.  **Ask (Key):** If you identify KEY skills in the job descriptions NOT in the CV or chat, you MUST ask. Be specific.
+    * *Good Example:* "I noticed several listings for 'Senior Developer' require 'Kubernetes' and 'CI/CD'. Do you have experience here?"
+5.  **Confirm and Suggest Update:** If the user confirms a new skill (e.g., "Yes, 2 years of Kubernetes"), first note it for future searches. Second, you MUST suggest they **update their CV in the text editor on the left** and press "Re-Analyze".
+    * *Example:* "Excellent! I've noted your 'Kubernetes' experience. I recommend **adding that to your CV in the editor right now** and hitting 'Re-Analyze' so we can search with your updated profile."
+6.  **Reply:** Formulate a conversational response including:
+    a) A summary of jobs found.
+    b) Your questions about missing skills (Gap Analysis).
+    c) Answers to any direct user questions.
+    
+**Mandatory:** You MUST base your job summary and Gap Analysis *directly* on the Google Search results.
+
+**Critical Link Rule:** Your response MUST be *directly* based on information from the search results. If you don't base your reply on the search results, the "Jobs Found" links (the job posting URLs) will NOT appear, and you will fail your primary task. The user NEEDS those links to apply.
+
+**Link Format Rule (NEW):** At the end of your job summary, you MUST include a list of the 3-5 most relevant job links in Markdown format, like this:
+* [Job Title 1](https://real-job-url.com)
+* [Job Title 2](https://real-job-url.net)
+
+**Response Format:** Use Markdown to format your response. Use bulleted lists (\`*\`) for questions or key points, and \`**bold**\` to highlight skills or job titles. This is crucial for readability.
+`
+            }
+        };
+
+        // --- Event Listeners ---
+
+        // Cambiar idioma
+        langBtnEs.addEventListener('click', () => setLanguage('es'));
+        langBtnEn.addEventListener('click', () => setLanguage('en'));
+
+        // Cargar CV e iniciar el agente (o Re-Analizar)
+        loadCvBtn.addEventListener('click', () => {
+            cvText = cvTextarea.value; // Siempre toma el valor actual
+            if (cvText.trim().length < 50) {
+                addMessage('agent', uiStrings[currentLang].cvTooShort);
+                return;
+            }
+
+            // Si es la primera vez, reinicia el chat
+            if (!isAgentReady) { 
+                resetChat();
+                addMessage('user', `CV Loaded: ${cvText.substring(0, 150)}... [CV remainder hidden for brevity]`);
+            } else {
+                 addMessage('user', `[CV Actualizado] Re-analizando con el nuevo CV...`);
+            }
+            
+            addMessage('agent', uiStrings[currentLang].cvReceived);
+            
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            isAgentReady = false;
+            critiqueCvBtn.disabled = true; // Deshabilitar botones durante la carga
+
+            // El primer mensaje al agente incluye el CV completo
+            const firstMessage = uiStrings[currentLang].firstMessageCV.replace('{cv}', cvText);
+            runAgent(firstMessage, true); // true = ejecutar búsqueda de empleos
+
+            // Habilitar controles post-carga (se mueven a runAgent.finally)
+            // y cambiar texto del botón
+            const btnSpan = loadCvBtn.querySelector('span');
+            if (btnSpan) {
+                btnSpan.textContent = uiStrings[currentLang].reAnalyzeBtn;
+            }
+        });
+
+        // NUEVO: Botón de Crítica de CV
+        critiqueCvBtn.addEventListener('click', () => {
+            cvText = cvTextarea.value; // Asegurarse de tener el CV más reciente
+             if (cvText.trim().length < 50) {
+                addMessage('agent', uiStrings[currentLang].cvTooShort);
+                return;
+            }
+
+            addMessage('user', `[Solicitud de Crítica de CV]`);
+            
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            isAgentReady = false;
+            critiqueCvBtn.disabled = true; // Deshabilitar botones durante la carga
+
+            const critiqueMessage = uiStrings[currentLang].critiqueMessage.replace('{cv}', cvText);
+            runAgent(critiqueMessage, false); // false = NO ejecutar búsqueda de empleos
+        });
+
+
+        // Enviar mensaje del usuario
+        userInputForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const userMessage = userInput.value.trim();
+            if (userMessage && isAgentReady) {
+                addMessage('user', userMessage);
+                userInput.value = '';
+                userInput.disabled = true;
+                sendBtn.disabled = true;
+                isAgentReady = false;
+                critiqueCvBtn.disabled = true;
+                
+                runAgent(userMessage, true); // Chat normal siempre busca empleos
+            }
+        });
+
+        // --- Funciones Principales ---
+
+        /**
+         * Ejecuta el agente de IA llamando a la API de Gemini.
+         * @param {string} userMessage - El mensaje del usuario para este turno.
+         * @param {boolean} [runSearch=true] - (NUEVO) Flag para correr Google Search.
+         */
+        async function runAgent(userMessage, runSearch = true) {
+            showLoader(true);
+            jobListingsContainer.classList.add('hidden'); // Ocultar empleos al pensar
+            jobListings.innerHTML = '';
+
+            // 1. Construir el historial de 'contents'
+            const contents = [
+                ...chatHistory,
+                {
+                    role: "user",
+                    parts: [{ text: userMessage }]
+                }
+            ];
+            
+            // 2. Obtener el systemPrompt en el idioma actual
+            const systemPrompt = uiStrings[currentLang].systemPrompt;
+
+            // 3. Definir el Payload para la API
+            const payload = {
+                contents: contents,
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                }
+            };
+
+            // 4. (NUEVO) Añadir herramientas condicionalmente
+            if (runSearch) {
+                payload.tools = [
+                    { "google_search": {} } // Habilitar la búsqueda de Google
+                ];
+            }
+
+
+            // 5. Llamar a la API con reintentos (backoff)
+            try {
+                const response = await fetchWithBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error de API: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                // 6. Procesar la respuesta
+                const candidate = result.candidates?.[0];
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    const agentResponseText = candidate.content.parts[0].text;
+                    const groundingMetadata = candidate.groundingMetadata;
+
+                    // 7. Actualizar el historial de chat
+                    chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+                    chatHistory.push({ role: "model", parts: [{ text: agentResponseText }] });
+
+                    // 8. Mostrar la respuesta del agente
+                    addMessage('agent', agentResponseText);
+
+                    // 9. Mostrar los empleos (¡Lógica mejorada!)
+                    const combinedSources = [];
+                    const addedUris = new Set();
+
+                    // Método 1: Desde las "fuentes" (GroundingMetadata)
+                    if (runSearch && groundingMetadata && groundingMetadata.groundingAttributions) {
+                        groundingMetadata.groundingAttributions
+                            .map(attr => attr.web)
+                            .filter(web => web && web.uri && web.title)
+                            .forEach(source => {
+                                if (!addedUris.has(source.uri)) {
+                                    combinedSources.push({ uri: source.uri, title: source.title });
+                                    addedUris.add(source.uri);
+                                }
+                            });
+                    }
+
+                    // Método 2: Extraer enlaces Markdown de la respuesta del agente
+                    const markdownLinks = extractMarkdownLinks(agentResponseText);
+                    markdownLinks.forEach(link => {
+                        if (!addedUris.has(link.uri)) {
+                            combinedSources.push(link);
+                            addedUris.add(link.uri);
+                        }
+                    });
+
+                    // Mostrar todos los empleos encontrados (solo si se buscó)
+                    if(runSearch) {
+                        displayJobs(combinedSources);
+                    }
+
+                } else {
+                    console.error("Respuesta inesperada de la API:", result);
+                    addMessage('agent', uiStrings[currentLang].apiError);
+                }
+
+            } catch (error) {
+                console.error("Error al llamar a runAgent:", error);
+                addMessage('agent', uiStrings[currentLang].connectionError);
+            } finally {
+                // 10. Reactivar la UI
+                showLoader(false);
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                critiqueCvBtn.disabled = false; // Habilitar siempre
+                isAgentReady = true;
+                userInput.focus();
+            }
+        }
+        
+        /**
+         * Cambia el idioma de la UI y reinicia el chat.
+         * @param {'es' | 'en'} lang - El idioma a establecer.
+         */
+        function setLanguage(lang) {
+            if (lang !== currentLang) {
+                currentLang = lang;
+                // Reinicia el chat al cambiar de idioma
+                resetChat();
+            }
+
+            // Actualizar botones
+            langBtnEs.classList.toggle('active', lang === 'es');
+            langBtnEn.classList.toggle('active', lang === 'en');
+            
+            // Actualizar título de la página
+            document.title = uiStrings[lang].title;
+
+            // Actualizar todos los elementos de la UI con data-attributes
+            document.querySelectorAll('[data-i18n-key]').forEach(el => {
+                const key = el.getAttribute('data-i18n-key');
+                const type = el.getAttribute('data-i18n-type');
+                
+                if (key && uiStrings[lang][key]) {
+                    const elKey = (el.id === 'load-cv-btn' && isAgentReady) ? 'reAnalyzeBtn' : key;
+                    
+                    if (type === 'placeholder') {
+                        el.placeholder = uiStrings[lang][elKey];
+                    } else if (el.tagName === 'SPAN') {
+                        el.textContent = uiStrings[lang][elKey];
+                    }
+                     else {
+                        // Para elementos que contienen solo texto como h2, p
+                        // Asegurarse de no sobrescribir botones con <span>
+                        const childSpan = el.querySelector('span');
+                        if (!childSpan) {
+                           el.textContent = uiStrings[lang][elKey];
+                        }
+                    }
+                }
+            });
+            
+             // Caso especial para el botón de re-análisis
+            const btnSpan = loadCvBtn.querySelector('span');
+            if (btnSpan) {
+                btnSpan.textContent = isAgentReady ? uiStrings[currentLang].reAnalyzeBtn : uiStrings[currentLang].analyzeBtn;
+            }
+        }
+        
+        /**
+         * Reinicia el chat a su estado inicial.
+         */
+        function resetChat() {
+            chatHistory = [];
+            cvText = "";
+            isAgentReady = false;
+            chatWindow.innerHTML = '';
+            jobListings.innerHTML = '';
+            jobListingsContainer.classList.add('hidden');
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            critiqueCvBtn.disabled = true; // Deshabilitado hasta que se cargue el CV
+            loadCvBtn.disabled = false;
+            cvTextarea.disabled = false; // El CV siempre es editable
+            
+            // Restaurar texto del botón de Analizar
+            const btnSpan = loadCvBtn.querySelector('span');
+            if (btnSpan) {
+                btnSpan.textContent = uiStrings[currentLang].analyzeBtn;
+            }
+
+            // Añadir mensaje de bienvenida en el idioma actual
+            addMessage('agent', uiStrings[currentLang].welcomeMsg);
+        }
+
+        /**
+         * Añade un mensaje a la ventana del chat.
+         * @param {'user' | 'agent'} sender - Quién envía el mensaje.
+         * @param {string} text - El contenido del mensaje.
+         */
+        function addMessage(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+            
+            const textContainer = document.createElement('div');
+            // Clases base para todas las burbujas
+            textContainer.className = `max-w-xs lg:max-w-xl p-4 rounded-xl shadow-md text-sm`;
+            
+            // Añadir clase específica de remitente
+            textContainer.classList.add(sender === 'user' ? 'user-bubble' : 'agent-bubble');
+
+            if (sender === 'agent') {
+                // Renderizar Markdown para el agente
+                textContainer.innerHTML = marked.parse(text);
+            } else {
+                // Sanitizar y mostrar texto para el usuario
+                const sanitizedText = text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/\n/g, '<br>');
+                textContainer.innerHTML = `<p>${sanitizedText}</p>`;
+            }
+
+            messageDiv.appendChild(textContainer);
+            chatWindow.appendChild(messageDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll
+        }
+
+        /**
+         * Extrae enlaces Markdown de un texto.
+         * @param {string} text - El texto del agente.
+         * @returns {Array<{uri: string, title: string}>}
+         */
+        function extractMarkdownLinks(text) {
+            const links = [];
+            const regex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                links.push({
+                    title: match[1],
+                    uri: match[2]
+                });
+            }
+            return links;
+        }
+
+        /**
+         * Muestra los trabajos encontrados en su contenedor.
+         * @param {Array<{uri: string, title: string}>} sources - Las fuentes de la búsqueda.
+         */
+        function displayJobs(sources) {
+            jobListings.innerHTML = ''; // Limpiar empleos anteriores
+            if (!sources || sources.length === 0) {
+                jobListings.innerHTML = `<p class="text-sm text-gray-500">${uiStrings[currentLang].noJobsFound}</p>`;
+                jobListingsContainer.classList.remove('hidden');
+                return;
+            }
+
+            sources.forEach(source => {
+                const jobLink = document.createElement('a');
+                jobLink.href = source.uri;
+                jobLink.target = '_blank';
+                jobLink.rel = 'noopener noreferrer';
+                jobLink.className = 'flex items-center justify-between p-3 bg-white hover:bg-gray-50 rounded-lg transition duration-200 group border border-gray-200 shadow-sm';
+                
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'truncate text-sm font-medium text-indigo-700 group-hover:text-indigo-800';
+                titleSpan.textContent = source.title || uiStrings[currentLang].untitledLink;
+                
+                const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 group-hover:text-indigo-600 shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>`;
+                
+                jobLink.appendChild(titleSpan);
+                jobLink.innerHTML += iconSvg;
+                
+                jobListings.appendChild(jobLink);
+            });
+            jobListingsContainer.classList.remove('hidden');
+        }
+
+        /**
+         * Muestra u oculta el indicador de carga.
+         * @param {boolean} show - True para mostrar, false para ocultar.
+         */
+        function showLoader(show) {
+            loader.classList.toggle('hidden', !show);
+        }
+
+        /**
+         * Función fetch con reintento y backoff exponencial.
+         * @param {string} url - La URL de la API.
+         * @param {object} options - Las opciones de fetch.
+         * @param {number} maxRetries - Número máximo de reintentos.
+         */
+        async function fetchWithBackoff(url, options, maxRetries = 3) {
+            let attempt = 0;
+            while (attempt < maxRetries) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status === 429 || response.status >= 500) {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                    return response; // Éxito
+                } catch (error) {
+                    attempt++;
+                    if (attempt >= maxRetries) {
+                        throw error;
+                    }
+                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        // --- Inicialización ---
+        setLanguage(currentLang); // Establecer el idioma inicial (español)
+
+    </script>
     <!-- 
     ========================================
-    FIN: CARGA DE JAVASCRIPT
+    FIN: ARCHIVO JAVASCRIPT (LÓGICO)
     ========================================
     -->
 </body>
 </html>
+
