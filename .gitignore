@@ -13,10 +13,8 @@ node_modules/
 #Ignorar archivos de variables de entorno locales
 
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*
+!.env.example
 
 #Ignorar la carpeta de despliegue de Vercel
 

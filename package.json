@@ -1,0 +1,17 @@
+{
+  "name": "job-agentic-ai",
+  "version": "2.0.0",
+  "description": "Asesor de Empleo con IA que procesa archivos CV (PDF, DOCX, TXT) en el backend.",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "formidable": "^3.5.1",
+    "mammoth": "^1.7.2",
+    "pdf-parse": "^1.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

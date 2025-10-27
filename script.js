@@ -4,7 +4,9 @@ ARCHIVO JAVASCRIPT (LÓGICA)
 */
 
 // --- Referencias del DOM ---
-const cvTextarea = document.getElementById('cv-textarea');
+const cvFileInput = document.getElementById('cv-file-input');
+const fileLabel = document.getElementById('file-label');
+const fileNameEl = document.getElementById('file-name');
 const loadCvBtn = document.getElementById('load-cv-btn');
 const critiqueCvBtn = document.getElementById('critique-cv-btn');
 const chatWindow = document.getElementById('chat-window');
@@ -19,48 +21,22 @@ const langBtnEn = document.getElementById('lang-btn-en');
 
 // --- Estado de la Aplicación ---
 let chatHistory = [];
-let cvText = "";
+let currentCvFile = null;
 let isAgentReady = false;
 let currentLang = 'es'; // Idioma por defecto
 
 // --- Configuración de la API de Gemini ---
 
-// ARQUITECTURA: Verificamos si la API_KEY existe en el archivo 'config.js' (ignorado por Git)
-// Esto es VITAL para la seguridad en GitHub.
-let apiKey;
-try {
-    if (typeof API_KEY !== 'undefined') {
-        apiKey = API_KEY;
-    } else {
-        // Esto es esperado en producción, no es un error.
-        console.info("config.js o API_KEY no encontrada. Asumiendo entorno de producción (proxy).");
-    }
-} catch (e) {
-    // Esto es esperado en producción.
-    console.info("Asumiendo entorno de producción (proxy).");
-}
-
 /**
- * ARQUITECTURA: Determina la URL de la API a usar.
- * - En local (localhost), usa la clave de config.js.
- * - En producción, usa el proxy /api/chat.
- * @returns {string|null} La URL de la API o null si falla la configuración local.
+ * ARQUITECTURA: El frontend ahora SIEMPRE llama al backend (proxy).
+ * Ya no maneja la clave de API en absoluto.
+ * @returns {string} La URL del proxy de la API.
  */
 function getApiUrl() {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    
-    if (isLocal) {
-        // --- Modo de Desarrollo Local ---
-        if (!apiKey) {
-            console.error("Error de Configuración Local: No se encontró API_KEY en config.js.");
-            addMessage('agent', 'Error de Configuración: No se encontró el archivo `config.js` con una `API_KEY`. Por favor, sigue las instrucciones del `README.md` para el desarrollo local.');
-            return null;
-        }
-        return `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-    } else {
-        // --- Modo de Producción (Vercel/Netlify) ---
-        return '/api/chat';
-    }
+    // Siempre usamos el proxy. En desarrollo local, Vercel CLI (o similar)
+    // redirigirá esto a la función serverless local.
+    // En producción, Vercel lo redirige a la función serverless desplegada.
+    return '/api/chat';
 }
 
 
@@ -68,24 +44,28 @@ function getApiUrl() {
 const uiStrings = {
     es: {
         title: "Asesor de Empleo con IA",
-        cvTitle: "Tu Curriculum VitaE (CV) - Editable",
-        cvSubtitle: "Pega tu CV aquí. Puedes editarlo en cualquier momento y re-analizar.",
-        cvPlaceholder: "Pega tu CV completo aquí... (Ej: Juan Pérez, Desarrollador Web, Experiencia en JavaScript, Educación...)",
+        cvTitle: "Sube tu Curriculum VitaE (CV)",
+        cvSubtitle: "Adjunta tu CV en formato .pdf, .docx, o .txt.",
+        fileLabel: "Selecciona un archivo",
+        fileNone: "Ningún archivo seleccionado.",
+        fileSelected: "Archivo: {fileName}",
+        fileFormats: "Soportados: PDF, DOCX, TXT",
         analyzeBtn: "Analizar CV y Buscar Empleos",
         reAnalyzeBtn: "Re-Analizar y Buscar",
         critiqueBtn: "Criticar mi CV",
-        welcomeMsg: "¡Hola! Soy tu asesor de IA para búsqueda de empleo. Pega tu CV a la izquierda y presiona 'Analizar' para comenzar.",
+        welcomeMsg: "¡Hola! Soy tu asesor de IA para búsqueda de empleo. Sube tu CV a la izquierda y presiona 'Analizar' para comenzar.",
         loaderMsg: "El agente está pensando...",
+        loaderMsgUpload: "Subiendo y procesando CV...",
         jobsFoundTitle: "Empleos Encontrados",
         noJobsFound: "No se encontraron empleos esta vez.",
         untitledLink: "Enlace sin título",
         chatPlaceholder: "Responde al agente aquí...",
         sendBtn: "Enviar",
-        cvTooShort: "Por favor, pega un CV más completo (mínimo 50 caracteres) para que pueda analizarlo correctamente.",
-        cvReceived: "¡CV recibido! Analizándolo y buscando empleos relevantes en internet. Esto puede tardar un momento...",
-        firstMessageCV: "Este es mi CV:\n\n---\n{cv}\n---\n\nPor favor, analiza mi CV, busca empleos relevantes y dime qué encuentras y qué habilidades clave podrían faltarme según las ofertas.",
-        critiqueMessage: "Este es mi CV actual:\n\n---\n{cv}\n---\n\nPor favor, actúa *únicamente* como un reclutador experto y asesor de carrera. NO busques empleos. Dame una crítica constructiva y accionable de mi CV. ¿Qué puedo mejorar? ¿Qué frases son débiles? ¿Cómo puedo reformular mi experiencia para tener más impacto?",
+        noFileError: "Por favor, selecciona un archivo de CV (.pdf, .docx, o .txt) primero.",
+        cvReceived: "¡CV recibido! El backend está procesando el archivo y buscando empleos. Esto puede tardar un momento...",
+        // Los mensajes de 'firstMessageCV' y 'critiqueMessage' ahora se construyen en el backend
         apiError: "Lo siento, he encontrado un error al procesar tu solicitud. Inténtalo de nuevo.",
+        backendError: "Lo siento, hubo un error en el servidor al procesar tu archivo: {error}",
         connectionError: "He tenido un problema de conexión. Por favor, espera un momento y vuelve a intentarlo.",
         systemPrompt: `
 Eres un "Asesor de IA" experto en reclutamiento y análisis de perfiles, como un headhunter de alto nivel. Tu tono es profesional, proactivo, servicial y estratégico.
@@ -100,8 +80,8 @@ Tu tarea es ayudar al usuario a encontrar las mejores ofertas de trabajo basadas
     * **NUEVO (Asesoría de Headhunter):** No solo identifiques habilidades faltantes, sino también **sugiere cómo reformular la experiencia existente** en el CV para que coincida mejor con las descripciones de trabajo. (Ej: "Veo que pones 'Manejo de proyectos'. Para la vacante de 'Scrum Master', reformúlalo a 'Liderazgo de ceremonias Scrum y gestión de backlogs'").
 4.  **Preguntar (Clave):** Si identificas habilidades CLAVE en las descripciones de los trabajos que NO están ni en el CV ni han sido confirmadas en el chat, DEBES preguntarle al usuario sobre ellas. Sé específico.
     * *Ejemplo Bueno:* "He notado que varias ofertas para 'Desarrollador Senior' piden experiencia con 'Kubernetes' y 'CI/CD'. ¿Tienes experiencia en estas áreas?"
-5.  **Confirmar y Sugerir Actualización:** Si el usuario confirma una nueva habilidad (ej. "Sí, usé Kubernetes por 2 años"), primero confirma que la has "anotado" para futuras búsquedas. Segundo, DEBES sugerirle que **actualice su CV en el editor de texto de la izquierda** y presione "Re-Analizar".
-    * *Ejemplo:* "¡Excelente! He tomado nota de tu experiencia con 'Kubernetes'. Te recomiendo **añadirlo ahora mismo a tu CV en el editor de la izquierda** y presionar 'Re-Analizar' para que busquemos empleos con tu perfil actualizado."
+5.  **Confirmar y Sugerir Actualización:** Si el usuario confirma una nueva habilidad (ej. "Sí, usé Kubernetes por 2 años"), primero confirma que la has "anotado" para futuras búsquedas. Segundo, DEBES sugerirle que **actualice su archivo de CV y lo vuelva a subir**.
+    * *Ejemplo:* "¡Excelente! He tomado nota de tu experiencia con 'Kubernetes'. Te recomiendo **añadirlo a tu CV, guardar el archivo, y volver a subirlo** para que busquemos empleos con tu perfil actualizado."
 6.  **Responder:** Formula una respuesta conversacional que incluya:
     a) Un resumen de los empleos encontrados.
     b) Tus preguntas sobre las habilidades faltantes (el "Gap Analysis").
@@ -120,24 +100,27 @@ Tu tarea es ayudar al usuario a encontrar las mejores ofertas de trabajo basadas
     },
     en: {
         title: "AI Job Advisor",
-        cvTitle: "Your Curriculum Vitae (CV) - Editable",
-        cvSubtitle: "Paste your CV here. You can edit it anytime and re-analyze.",
-        cvPlaceholder: "Paste your full CV here... (e.g., John Doe, Web Developer, JavaScript Experience, Education...)",
+        cvTitle: "Upload Your Curriculum Vitae (CV)",
+        cvSubtitle: "Attach your CV in .pdf, .docx, or .txt format.",
+        fileLabel: "Select a file",
+        fileNone: "No file selected.",
+        fileSelected: "File: {fileName}",
+        fileFormats: "Supported: PDF, DOCX, TXT",
         analyzeBtn: "Analyze CV and Search Jobs",
         reAnalyzeBtn: "Re-Analyze and Search",
         critiqueBtn: "Critique my CV",
-        welcomeMsg: "Hi! I'm your AI job advisor. Paste your CV on the left and press 'Analyze' to start.",
+        welcomeMsg: "Hi! I'm your AI job advisor. Upload your CV on the left and press 'Analyze' to start.",
         loaderMsg: "The agent is thinking...",
+        loaderMsgUpload: "Uploading and processing CV...",
         jobsFoundTitle: "Jobs Found",
         noJobsFound: "No jobs were found this time.",
         untitledLink: "Untitled Link",
         chatPlaceholder: "Reply to the agent here...",
         sendBtn: "Send",
-        cvTooShort: "Please paste a more complete CV (minimum 50 characters) so I can analyze it correctly.",
-        cvReceived: "CV received! Analyzing it and searching for relevant jobs online. This may take a moment...",
-        firstMessageCV: "This is my CV:\n\n---\n{cv}\n---\n\nPlease analyze my CV, search for relevant jobs, and tell me what you find and what key skills I might be missing based on the listings.",
-        critiqueMessage: "This is my current CV:\n\n---\n{cv}\n---\n\nPlease act *only* as an expert recruiter and career coach. DO NOT search for jobs. Give me constructive, actionable feedback on my CV. What can I improve? What phrases are weak? How can I rephrase my experience for more impact?",
+        noFileError: "Please select a CV file (.pdf, .docx, or .txt) first.",
+        cvReceived: "CV received! The backend is processing the file and searching for jobs. This may take a moment...",
         apiError: "Sorry, I've encountered an error while processing your request. Please try again.",
+        backendError: "Sorry, there was a server error processing your file: {error}",
         connectionError: "I've had a connection issue. Please wait a moment and try again.",
         systemPrompt: `
 You are an "AI Advisor" and expert headhunter. Your tone is professional, proactive, helpful, and strategic.
@@ -152,8 +135,8 @@ Your task is to help the user find the best job offers based on their CV and con
     * **NEW (Headhunter Advice):** Don't just identify missing skills, but also **suggest how to rephrase existing experience** on the CV to better match job descriptions. (e.g., "I see you listed 'Project Management'. For this 'Scrum Master' role, rephrase that to 'Led Scrum ceremonies and managed product backlogs'").
 4.  **Ask (Key):** If you identify KEY skills in the job descriptions NOT in the CV or chat, you MUST ask. Be specific.
     * *Good Example:* "I noticed several listings for 'Senior Developer' require 'Kubernetes' and 'CI/CD'. Do you have experience here?"
-5.  **Confirm and Suggest Update:** If the user confirms a new skill (e.g., "Yes, 2 years of Kubernetes"), first note it for future searches. Second, you MUST suggest they **update their CV in the text editor on the left** and press "Re-Analyze".
-    * *Example:* "Excellent! I've noted your 'Kubernetes' experience. I recommend **adding that to your CV in the editor right now** and hitting 'Re-Analyze' so we can search with your updated profile."
+5.  **Confirm and Suggest Update:** If the user confirms a new skill (e.g., "Yes, 2 years of Kubernetes"), first note it for future searches. Second, you MUST suggest they **update their CV file and re-upload it**.
+    * *Example:* "Excellent! I've noted your 'Kubernetes' experience. I recommend **adding that to your CV, saving the file, and re-uploading it** so we can search with your updated profile."
 6.  **Reply:** Formulate a conversational response including:
     a) A summary of jobs found.
     b) Your questions about missing skills (Gap Analysis).
@@ -175,51 +158,58 @@ Your task is to help the user find the best job offers based on their CV and con
 // --- Event Listeners ---
 langBtnEs.addEventListener('click', () => setLanguage('es'));
 langBtnEn.addEventListener('click', () => setLanguage('en'));
-loadCvBtn.addEventListener('click', handleCvLoad);
-critiqueCvBtn.addEventListener('click', handleCvCritique);
+cvFileInput.addEventListener('change', handleFileSelect);
+loadCvBtn.addEventListener('click', () => handleCvUpload('analyze'));
+critiqueCvBtn.addEventListener('click', () => handleCvUpload('critique'));
 userInputForm.addEventListener('submit', handleUserMessage);
 
 
 // --- Handlers de Eventos ---
 
-function handleCvLoad() {
-    cvText = cvTextarea.value; // Siempre toma el valor actual
-    if (cvText.trim().length < 50) {
-        addMessage('agent', uiStrings[currentLang].cvTooShort);
+function handleFileSelect(e) {
+    if (e.target.files && e.target.files.length > 0) {
+        currentCvFile = e.target.files[0];
+        fileNameEl.textContent = uiStrings[currentLang].fileSelected.replace('{fileName}', currentCvFile.name);
+        fileNameEl.classList.add('font-medium');
+        loadCvBtn.disabled = false;
+        critiqueCvBtn.disabled = false;
+    } else {
+        currentCvFile = null;
+        fileNameEl.textContent = uiStrings[currentLang].fileNone;
+        fileNameEl.classList.remove('font-medium');
+        loadCvBtn.disabled = true;
+        critiqueCvBtn.disabled = true;
+    }
+}
+
+function handleCvUpload(action) {
+    if (!currentCvFile) {
+        addMessage('agent', uiStrings[currentLang].noFileError);
         return;
     }
 
     if (!isAgentReady) { 
         resetChat(false); // No limpiar el mensaje de bienvenida
-        addMessage('user', `CV Loaded: ${cvText.substring(0, 150)}... [CV remainder hidden for brevity]`);
-    } else {
-         addMessage('user', `[CV Actualizado] Re-analizando con el nuevo CV...`);
     }
     
+    addMessage('user', `[CV: ${currentCvFile.name} | Acción: ${action}]`);
     addMessage('agent', uiStrings[currentLang].cvReceived);
-    setLoadingState(true);
+    setLoadingState(true, true); // true = subiendo
 
-    const firstMessage = uiStrings[currentLang].firstMessageCV.replace('{cv}', cvText);
-    runAgent(firstMessage, true); // true = ejecutar búsqueda de empleos
+    const formData = new FormData();
+    formData.append('cvFile', currentCvFile);
+    formData.append('chatHistory', JSON.stringify(chatHistory));
+    formData.append('systemPrompt', uiStrings[currentLang].systemPrompt);
+    formData.append('lang', currentLang);
+    formData.append('action', action); // 'analyze' o 'critique'
+
+    // El CV se envía al backend para ser procesado
+    runAgent(null, formData); 
 
     const btnSpan = loadCvBtn.querySelector('span');
     if (btnSpan) {
         btnSpan.textContent = uiStrings[currentLang].reAnalyzeBtn;
     }
-}
-
-function handleCvCritique() {
-    cvText = cvTextarea.value;
-     if (cvText.trim().length < 50) {
-        addMessage('agent', uiStrings[currentLang].cvTooShort);
-        return;
-    }
-
-    addMessage('user', `[Solicitud de Crítica de CV]`);
-    setLoadingState(true);
-
-    const critiqueMessage = uiStrings[currentLang].critiqueMessage.replace('{cv}', cvText);
-    runAgent(critiqueMessage, false); // false = NO ejecutar búsqueda de empleos
 }
 
 function handleUserMessage(e) {
@@ -230,54 +220,61 @@ function handleUserMessage(e) {
         userInput.value = '';
         setLoadingState(true);
         
-        runAgent(userMessage, true); // Chat normal siempre busca empleos
+        // El chat normal se envía como JSON
+        runAgent(userMessage, null); 
     }
 }
 
 // --- Funciones Principales ---
 
 /**
- * Ejecuta el agente de IA llamando a la API de Gemini.
- * @param {string} userMessage - El mensaje del usuario para este turno.
- * @param {boolean} [runSearch=true] - Flag para correr Google Search.
+ * Ejecuta el agente de IA llamando al backend.
+ * Puede manejar un mensaje de texto (JSON) o una subida de archivo (FormData).
+ * @param {string | null} userMessage - El mensaje de texto del usuario.
+ * @param {FormData | null} formData - El formulario con el archivo CV.
  */
-async function runAgent(userMessage, runSearch = true) {
-    showLoader(true);
+async function runAgent(userMessage, formData) {
+    showLoader(true, !!formData); // Muestra loader de subida si es formData
     jobListingsContainer.classList.add('hidden');
     jobListings.innerHTML = '';
 
-    // Obtener la URL correcta (local con clave o proxy de prod)
     const apiUrl = getApiUrl();
-    if (!apiUrl) {
-        setLoadingState(false);
-        return; // Error de configuración local, mensaje ya mostrado.
-    }
+    let fetchOptions;
 
-    const contents = [
-        ...chatHistory,
-        { role: "user", parts: [{ text: userMessage }] }
-    ];
-    
-    const systemPrompt = uiStrings[currentLang].systemPrompt;
-
-    const payload = {
-        contents: contents,
-        systemInstruction: { parts: [{ text: systemPrompt }] }
-    };
-
-    if (runSearch) {
-        payload.tools = [{ "google_search": {} }];
-    }
-
-    try {
-        const response = await fetchWithBackoff(apiUrl, {
+    if (formData) {
+        // --- Caso de Subida de Archivo (FormData) ---
+        // No establecemos Content-Type; el navegador lo hará por nosotros
+        // con el 'boundary' correcto para multipart/form-data
+        fetchOptions = {
+            method: 'POST',
+            body: formData, 
+        };
+    } else {
+        // --- Caso de Mensaje de Chat (JSON) ---
+        const contents = [
+            ...chatHistory,
+            { role: "user", parts: [{ text: userMessage }] }
+        ];
+        
+        const payload = {
+            contents: contents,
+            systemInstruction: { parts: [{ text: uiStrings[currentLang].systemPrompt }] },
+            runSearch: true // Chat normal siempre busca empleos
+        };
+        
+        fetchOptions = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        });
+        };
+    }
+
+    try {
+        const response = await fetchWithBackoff(apiUrl, fetchOptions);
 
         if (!response.ok) {
-            throw new Error(`Error de API: ${response.statusText}`);
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error de API: ${response.statusText}`);
         }
 
         const result = await response.json();
@@ -287,13 +284,22 @@ async function runAgent(userMessage, runSearch = true) {
             const agentResponseText = candidate.content.parts[0].text;
             const groundingMetadata = candidate.groundingMetadata;
 
-            chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+            // Determinar el mensaje de usuario a guardar (el texto o la acción de subida)
+            const userHistoryMessage = formData 
+                ? `[Subido CV: ${currentCvFile.name}]` 
+                : userMessage;
+
+            chatHistory.push({ role: "user", parts: [{ text: userHistoryMessage }] });
             chatHistory.push({ role: "model", parts: [{ text: agentResponseText }] });
 
             addMessage('agent', agentResponseText);
 
+            // Extraer enlaces de los metadatos
             const combinedSources = [];
             const addedUris = new Set();
+
+            // Solo mostrar empleos si NO fue una subida de 'critique'
+            const runSearch = (formData && formData.get('action') === 'critique') ? false : true;
 
             if (runSearch && groundingMetadata && groundingMetadata.groundingAttributions) {
                 groundingMetadata.groundingAttributions
@@ -307,6 +313,7 @@ async function runAgent(userMessage, runSearch = true) {
                     });
             }
 
+            // Extraer enlaces de Markdown
             const markdownLinks = extractMarkdownLinks(agentResponseText);
             markdownLinks.forEach(link => {
                 if (!addedUris.has(link.uri)) {
@@ -321,7 +328,7 @@ async function runAgent(userMessage, runSearch = true) {
 
         } else if (result.error) {
              console.error("Error de API (del proxy):", result.error);
-             addMessage('agent', `${uiStrings[currentLang].apiError} (Detalle: ${result.error})`);
+             addMessage('agent', uiStrings[currentLang].backendError.replace('{error}', result.error));
         } else {
             console.error("Respuesta inesperada de la API:", result);
             addMessage('agent', uiStrings[currentLang].apiError);
@@ -329,7 +336,7 @@ async function runAgent(userMessage, runSearch = true) {
 
     } catch (error) {
         console.error("Error al llamar a runAgent:", error);
-        addMessage('agent', uiStrings[currentLang].connectionError);
+        addMessage('agent', `${uiStrings[currentLang].connectionError} (Detalle: ${error.message})`);
     } finally {
         setLoadingState(false);
     }
@@ -340,13 +347,16 @@ async function runAgent(userMessage, runSearch = true) {
 /**
  * Habilita o deshabilita los controles de la UI durante la carga.
  * @param {boolean} isLoading - Estado de carga.
+ * @param {boolean} [isUploading=false] - Estado de subida de archivo.
  */
-function setLoadingState(isLoading) {
-    showLoader(isLoading);
+function setLoadingState(isLoading, isUploading = false) {
+    showLoader(isLoading, isUploading);
     userInput.disabled = isLoading;
     sendBtn.disabled = isLoading;
-    critiqueCvBtn.disabled = isLoading;
-    loadCvBtn.disabled = isLoading; // Deshabilitar ambos botones de CV
+    // Deshabilitar botones de CV si está cargando, o si no hay archivo
+    critiqueCvBtn.disabled = isLoading || !currentCvFile; 
+    loadCvBtn.disabled = isLoading || !currentCvFile;
+    
     isAgentReady = !isLoading;
     if (!isLoading) {
         userInput.focus();
@@ -374,7 +384,17 @@ function setLanguage(lang) {
         const type = el.getAttribute('data-i18n-type');
         
         if (key && uiStrings[lang][key]) {
-            const elKey = (el.id === 'load-cv-btn' && isAgentReady) ? 'reAnalyzeBtn' : key;
+            let elKey = key;
+            // Manejar texto del botón de re-análisis
+            if (el.id === 'load-cv-btn' && isAgentReady) {
+                elKey = 'reAnalyzeBtn';
+            }
+            // Manejar nombre de archivo
+            if (el.id === 'file-name') {
+                 elKey = currentCvFile ? 'fileSelected' : 'fileNone';
+                 el.textContent = uiStrings[lang][elKey].replace('{fileName}', currentCvFile ? currentCvFile.name : '');
+                 return; // Evitar que se sobrescriba
+            }
             
             if (type === 'placeholder') {
                 el.placeholder = uiStrings[lang][elKey];
@@ -398,7 +418,7 @@ function setLanguage(lang) {
  */
 function resetChat(addWelcome = true) {
     chatHistory = [];
-    cvText = "";
+    currentCvFile = null;
     isAgentReady = false;
     chatWindow.innerHTML = '';
     jobListings.innerHTML = '';
@@ -406,7 +426,12 @@ function resetChat(addWelcome = true) {
     userInput.disabled = true;
     sendBtn.disabled = true;
     critiqueCvBtn.disabled = true;
-    loadCvBtn.disabled = false;
+    loadCvBtn.disabled = true;
+    
+    // Resetear UI de subida de archivo
+    cvFileInput.value = null; // Limpiar el input de archivo
+    fileNameEl.textContent = uiStrings[currentLang].fileNone;
+    fileNameEl.classList.remove('font-medium');
     
     const btnSpan = loadCvBtn.querySelector('span');
     if (btnSpan) {
@@ -500,9 +525,16 @@ function displayJobs(sources) {
 /**
  * Muestra u oculta el indicador de carga.
  * @param {boolean} show - True para mostrar, false para ocultar.
+ * @param {boolean} [isUploading=false] - True si es una subida de archivo.
  */
-function showLoader(show) {
+function showLoader(show, isUploading = false) {
     loader.classList.toggle('hidden', !show);
+    if(show) {
+        const loaderText = loader.querySelector('span');
+        loaderText.textContent = isUploading 
+            ? uiStrings[currentLang].loaderMsgUpload 
+            : uiStrings[currentLang].loaderMsg;
+    }
 }
 
 /**
@@ -517,6 +549,11 @@ async function fetchWithBackoff(url, options, maxRetries = 3) {
         try {
             const response = await fetch(url, options);
             if (response.status === 429 || response.status >= 500) {
+                // No reintentar en 500 si es error del servidor,
+                // solo en 429 (Rate Limit) o 503 (Servicio no disponible)
+                if (response.status !== 429 && response.status !== 503) {
+                   return response; // Devolver la respuesta de error 500 directamente
+                }
                 throw new Error(`Server error: ${response.status}`);
             }
             return response;

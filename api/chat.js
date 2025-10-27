@@ -1,78 +1,153 @@
 /*
  * =======================================
  * ARCHIVO DE PROXY SEGURO (BACKEND)
+ * REESCRITO PARA SUBIDA DE ARCHIVOS
  * =======================================
  *
- * ESTE ES TU BACKEND SEGURO (Serverless Function para Vercel/Netlify)
- * Se debe colocar en una carpeta /api en la raíz de tu proyecto.
+ * Este backend AHORA corre en el runtime de Node.js (NO en 'edge').
+ * Se encarga de:
+ * 1. Recibir la subida de archivos (multipart/form-data).
+ * 2. Parsear el formulario.
+ * 3. Usar 'pdf-parse' y 'mammoth' para EXTRAER texto del archivo CV.
+ * 4. Construir el prompt para Gemini.
+ * 5. Llamar a la API de Gemini y devolver la respuesta.
  *
- * CÓMO FUNCIONA:
- * 1. El frontend (script.js) llama a '/api/chat'.
- * 2. Vercel/Netlify ejecutan este archivo en un servidor.
- * 3. Este script lee la clave de API secreta desde las "Variables de Entorno"
- * (que tú configuras en el panel de Vercel/Netlify).
- * 4. Llama a la API de Gemini DESDE EL SERVIDOR, adjuntando la clave.
- * 5. Devuelve la respuesta de Gemini al frontend.
- *
- * RESULTADO: La clave de API NUNCA se envía al navegador del usuario.
+ * Requiere 'npm install formidable pdf-parse mammoth'
  */
 
-export const config = {
-  runtime: 'edge', // Optimizado para velocidad y streaming
+// Importar dependencias
+import { IncomingForm } from 'formidable';
+import fs from 'fs';
+import pdf from 'pdf-parse';
+import mammoth from 'mammoth';
+
+// --- Textos de Prompt (para construir el prompt en el backend) ---
+const promptStrings = {
+    es: {
+        firstMessageCV: "Este es mi CV:\n\n---\n{cv}\n---\n\nPor favor, analiza mi CV, busca empleos relevantes y dime qué encuentras y qué habilidades clave podrían faltarme según las ofertas.",
+        critiqueMessage: "Este es mi CV actual:\n\n---\n{cv}\n---\n\nPor favor, actúa *únicamente* como un reclutador experto y asesor de carrera. NO busques empleos. Dame una crítica constructiva y accionable de mi CV. ¿Qué puedo mejorar? ¿Qué frases son débiles? ¿Cómo puedo reformular mi experiencia para tener más impacto?",
+    },
+    en: {
+        firstMessageCV: "This is my CV:\n\n---\n{cv}\n---\n\nPlease analyze my CV, search for relevant jobs, and tell me what you find and what key skills I might be missing based on the listings.",
+        critiqueMessage: "This is my current CV:\n\n---\n{cv}\n---\n\nPlease act *only* as an expert recruiter and career coach. DO NOT search for jobs. Give me constructive, actionable feedback on my CV. What can I improve? What phrases are weak? How can I rephrase my experience for more impact?",
+    }
 };
 
-export default async function (req) {
-  // 1. Obtener el cuerpo de la solicitud (historial de chat, etc.) del frontend
-  let requestBody;
-  try {
-    requestBody = await req.json();
-  } catch (error) {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+// --- Helper: Función para parsear el texto del CV ---
+async function parseCvText(file) {
+    const mimeType = file.mimetype;
+    const filePath = file.filepath;
 
-  // 2. Leer la clave de API secreta desde las Variables de Entorno
-  //    Esta clave SÓLO existe en el servidor.
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'API key not configured on server' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-  
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-
-  try {
-    // 3. Llamar a la API de Gemini DESDE EL SERVIDOR
-    const geminiResponse = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody), // Pasar el cuerpo del frontend
-    });
-
-    const data = await geminiResponse.json();
-
-    // 4. Devolver la respuesta de Gemini al frontend
-    return new Response(JSON.stringify(data), {
-      status: geminiResponse.status,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-  } catch (error) {
-    // Manejar errores de red o de la API
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  }
+    if (mimeType === 'application/pdf') {
+        const dataBuffer = fs.readFileSync(filePath);
+        const data = await pdf(dataBuffer);
+        return data.text;
+    } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { // .docx
+        const result = await mammoth.extractRawText({ path: filePath });
+        return result.value;
+    } else if (mimeType === 'text/plain') { // .txt
+        return fs.readFileSync(filePath, 'utf8');
+    } else {
+        throw new Error(`Unsupported file type: ${mimeType}. Please use PDF, DOCX, or TXT.`);
+    }
 }
+
+// --- Helper: Función para llamar a Gemini ---
+async function callGeminiAPI(payload) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error('API key not configured on server');
+    }
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+    const geminiResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+
+    return geminiResponse;
+}
+
+// --- Handler Principal de la API ---
+export default async function handler(req, res) {
+    
+    // --- RUTA 1: Mensaje de chat normal (JSON) ---
+    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
+        try {
+            const requestBody = req.body; // Vercel parsea JSON automáticamente
+            const geminiResponse = await callGeminiAPI(requestBody);
+            const data = await geminiResponse.json();
+            
+            return res.status(geminiResponse.status).json(data);
+            
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // --- RUTA 2: Subida de archivo (multipart/form-data) ---
+    const form = new IncomingForm();
+
+    try {
+        const [fields, files] = await form.parse(req);
+        
+        const cvFile = files.cvFile?.[0];
+        const chatHistoryStr = fields.chatHistory?.[0];
+        const systemPromptStr = fields.systemPrompt?.[0];
+        const lang = fields.lang?.[0] || 'es';
+        const action = fields.action?.[0]; // 'analyze' o 'critique'
+
+        if (!cvFile) {
+            return res.status(400).json({ error: 'No CV file uploaded.' });
+        }
+
+        // 1. Extraer texto del CV
+        let extractedCvText;
+        try {
+            extractedCvText = await parseCvText(cvFile);
+        } catch (parseError) {
+            return res.status(400).json({ error: parseError.message });
+        }
+
+        // 2. Construir el prompt del usuario
+        let userMessage;
+        const strings = promptStrings[lang] || promptStrings.es;
+        if (action === 'critique') {
+            userMessage = strings.critiqueMessage.replace('{cv}', extractedCvText);
+        } else {
+            userMessage = strings.firstMessageCV.replace('{cv}', extractedCvText);
+        }
+
+        // 3. Construir el payload de Gemini
+        const chatHistory = JSON.parse(chatHistoryStr || '[]');
+        const contents = [
+            ...chatHistory,
+            { role: "user", parts: [{ text: userMessage }] }
+        ];
+        
+        const systemInstruction = { parts: [{ text: systemPromptStr }] };
+
+        const payload = {
+            contents: contents,
+            systemInstruction: systemInstruction,
+        };
+
+        // Añadir herramienta de búsqueda si la acción es 'analyze'
+        if (action === 'analyze') {
+            payload.tools = [{ "google_search": {} }];
+        }
+        
+        // 4. Llamar a la API de Gemini
+        const geminiResponse = await callGeminiAPI(payload);
+        const data = await geminiResponse.json();
+        
+        // 5. Devolver la respuesta
+        return res.status(geminiResponse.status).json(data);
+
+    } catch (error) {
+        console.error('Error en el backend:', error);
+        return res.status(500).json({ error: error.message });
+    }
+}
+
